@@ -1,0 +1,3 @@
+[submodule "mobile-app/iot-2023-mobile-app"]
+	path = mobile-app/iot-2023-mobile-app
+	url = https://github.com/dubielel/iot-2023-mobile-app.git
