@@ -11,7 +11,7 @@ namespace credentials {
 /*
  * Primary Connecion String
  */
-extern const char* iothub_connection_string;
+const char* iothub_connection_string = "HostName=...;DeviceId=...;SharedAccessKey=...";
 }
 }
 #endif

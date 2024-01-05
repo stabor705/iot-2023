@@ -11,6 +11,9 @@
  */
 
 // Global symbol referenced by the Azure SDK's port for Mbed OS, via "extern"
+NetworkInterface *_defaultSystemNetwork;
+
+
 static bool message_received = false;
 
 
@@ -91,16 +94,16 @@ bool AZURE::connect() {
     );
     if (client_handle == nullptr) {
         LogError("Failed to create IoT Hub client handle");
-        return false
+        return false;
     }
 
     // Enable SDK tracing
-    // bool trace_on = false;
-    // IOTHUB_CLIENT_RESULT res = IoTHubDeviceClient_SetOption(client_handle, OPTION_LOG_TRACE, &trace_on);
-    // if (res != IOTHUB_CLIENT_OK) {
-    //     LogError("Failed to enable IoT Hub client tracing, error: %d", res);
-    //     return -1;
-    // }
+    bool trace_on = false;
+    IOTHUB_CLIENT_RESULT res = IoTHubDeviceClient_SetOption(client_handle, OPTION_LOG_TRACE, &trace_on);
+    if (res != IOTHUB_CLIENT_OK) {
+        LogError("Failed to enable IoT Hub client tracing, error: %d", res);
+        return false;
+    }
 
     // Enable static CA Certificates defined in the SDK
     res = IoTHubDeviceClient_SetOption(client_handle, OPTION_TRUSTED_CERT, certificates);
@@ -120,7 +123,7 @@ bool AZURE::connect() {
     res = IoTHubDeviceClient_SetMessageCallback(client_handle, on_message_received, nullptr);
     if (res != IOTHUB_CLIENT_OK) {
         LogError("Failed to set message callback, error: %d", res);
-        return false
+        return false;
     }
 
     // Set connection/disconnection callback
@@ -150,17 +153,17 @@ bool AZURE::send_message(const char *message, IOTHUB_DEVICE_CLIENT_HANDLE client
 }
 
 
-bool AZURE::receive_message() {
-    while (!message_received) {
-        // Continue to receive messages in the communication thread
-        // which is internally created and maintained by the Azure SDK.
-        sleep();
-    }
-    return true;
-}
+// bool AZURE::receive_message() {
+//     while (!message_received) {
+//         // Continue to receive messages in the communication thread
+//         // which is internally created and maintained by the Azure SDK.
+//         sleep();
+//     }
+//     return true;
+// }
 
 
-void AZURE::disconnect() {
+void AZURE::disconnect(IOTHUB_DEVICE_CLIENT_HANDLE client_handle) {
     IoTHubDeviceClient_Destroy(client_handle);
     IoTHub_Deinit();
 }
