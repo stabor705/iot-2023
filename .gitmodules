@@ -1,0 +1,6 @@
+[submodule "embedded/stm32-czujnik-temperatury/embedded/stm32-czujnik-temperatury/ntp-client"]
+	path = embedded/stm32-czujnik-temperatury/embedded/stm32-czujnik-temperatury/ntp-client
+	url = https://github.com/ARMmbed/ntp-client
+[submodule "embedded/stm32-czujnik-temperatury/embedded/stm32-czujnik-temperatury/mbed-client-for-azure"]
+	path = embedded/stm32-czujnik-temperatury/embedded/stm32-czujnik-temperatury/mbed-client-for-azure
+	url = https://github.com/ARMmbed/mbed-client-for-azure
