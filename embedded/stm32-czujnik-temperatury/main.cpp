@@ -34,21 +34,12 @@ void wifi_procedure() {
     }
 }
 
-void bluetooth_procedure() {
-    ISM43362Interface wifi;
-
-    auto res = wifi.set_credentials("dupa", "gowno");
-    if (res != NSAPI_ERROR_OK) {
-        printf("Failure: %d", res);
-    }
-    while (true) {
-    } 
-}
-
 // main() runs in its own thread in the OS
 int main()
 {
-    bluetooth_procedure();
+    ISM43362Interface wifi;
+    int result = wifi.startOpenAP();
+    printf("OpenAP result = %d", result);
 
     TMP102 tmp(D14, D15, 0x90);
 
