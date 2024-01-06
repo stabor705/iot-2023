@@ -1,10 +1,13 @@
 #include "SocketAddress.h"
 #include "TCPSocket.h"
+#include "ThisThread.h"
+#include "Thread.h"
 #include "WiFiInterface.h"
 #include "mbed.h"
 #include "wifi-ism43362/ISM43362Interface.h"
 #include "TMP102.h"
 #include "nsapi_types.h"
+#include <cstdint>
 #include <cstdio>
 
 #define SSID "809A stachu"
@@ -34,14 +37,20 @@ void wifi_procedure() {
     }
 }
 
+void handle_event(nsapi_event_t event, intptr_t reason) {
+    printf("Handling event %d with reason %d", event, reason);
+}
+
 // main() runs in its own thread in the OS
 int main()
 {
     ISM43362Interface wifi;
-    int result = wifi.startOpenAP();
-    printf("OpenAP result = %d", result);
-
+    printf("Starting OpenAP\n");
+    int result = wifi.startSoftAp();
+    printf("OpenAP result = %d\n", result);
     TMP102 tmp(D14, D15, 0x90);
-
+    while (true) {
+        
+    }
 }
 
