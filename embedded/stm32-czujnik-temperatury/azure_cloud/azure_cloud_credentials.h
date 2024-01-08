@@ -12,6 +12,7 @@ namespace credentials {
  * Primary Connecion String
  */
 extern const char* iothub_connection_string;
+extern const char* certificate_pem_crt;
 }
 }
 #endif
