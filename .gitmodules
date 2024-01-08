@@ -4,3 +4,7 @@
 [submodule "embedded/stm32-czujnik-temperatury/mbed-client-for-azure"]
 	path = embedded/stm32-czujnik-temperatury/mbed-client-for-azure
 	url = https://github.com/ARMmbed/mbed-client-for-azure
+
+[submodule "embedded/stm32-czujnik-temperatury/wifi-ism43362"]
+	path = embedded/stm32-czujnik-temperatury/wifi-ism43362
+	url = https://github.com/stabor705/wifi-ism43362
