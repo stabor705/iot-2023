@@ -7,3 +7,7 @@
 [submodule "iot-bcdgl-azure-functions"]
 	path = iot-bcdgl-azure-functions
 	url = https://github.com/kacienk/iot-bcdgl-azure-functions.git
+
+[submodule "embedded/stm32-czujnik-temperatury/wifi-ism43362"]
+	path = embedded/stm32-czujnik-temperatury/wifi-ism43362
+	url = https://github.com/stabor705/wifi-ism43362
