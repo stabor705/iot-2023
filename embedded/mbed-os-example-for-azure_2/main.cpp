@@ -182,13 +182,12 @@ int main() {
     SocketAddress a;
     _defaultSystemNetwork->get_ip_address(&a);
     printf("IP address: %s\n", a.get_ip_address() ? a.get_ip_address() : "None");
-    a.set_port(42069);
     TCPSocket socket;
-    socket.open(_defaultSystemNetwork);
-
-    socket.bind(a);
-    socket.listen();
-
+    ret = socket.open(_defaultSystemNetwork);
+    if (ret != 0) {
+        LogError("Failed to open socket: %d", ret);
+        return -1;
+    }
 
     LogInfo("Getting time from the NTP server");
     NTPClient ntp(_defaultSystemNetwork);
