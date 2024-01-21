@@ -11,3 +11,6 @@
 [submodule "embedded/stm32-czujnik-temperatury/wifi-ism43362"]
 	path = embedded/stm32-czujnik-temperatury/wifi-ism43362
 	url = https://github.com/stabor705/wifi-ism43362
+[submodule "iot-2023-mobile-app"]
+	path = iot-2023-mobile-app
+	url = https://github.com/dubielel/iot-2023-mobile-app.git
