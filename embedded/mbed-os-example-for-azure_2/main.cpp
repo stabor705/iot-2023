@@ -16,6 +16,7 @@
 #include "azure_c_shared_utility/threadapi.h"
 #include "azure_c_shared_utility/tickcounter.h"
 #include "azure_c_shared_utility/xlogging.h"
+#include "TCPSocket.h"
 
 #include "iothubtransportmqtt.h"
 #include "azure_cloud_credentials.h"
@@ -177,8 +178,19 @@ int main() {
     }
     LogInfo("Connection success, MAC: %s", _defaultSystemNetwork->get_mac_address());
 
-    LogInfo("Getting time from the NTP server");
+    
+    SocketAddress a;
+    _defaultSystemNetwork->get_ip_address(&a);
+    printf("IP address: %s\n", a.get_ip_address() ? a.get_ip_address() : "None");
+    a.set_port(42069);
+    TCPSocket socket;
+    socket.open(_defaultSystemNetwork);
 
+    socket.bind(a);
+    socket.listen();
+
+
+    LogInfo("Getting time from the NTP server");
     NTPClient ntp(_defaultSystemNetwork);
     ntp.set_server("time.google.com", 123);
     time_t timestamp = ntp.get_timestamp();
