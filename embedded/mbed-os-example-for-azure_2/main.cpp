@@ -17,9 +17,12 @@
 #include "azure_c_shared_utility/tickcounter.h"
 #include "azure_c_shared_utility/xlogging.h"
 #include "TCPSocket.h"
-
+#include "stm32f413h_discovery.h"
+#include "stm32f413h_discovery_ts.h"
+#include "stm32f413h_discovery_lcd.h"
 #include "iothubtransportmqtt.h"
 #include "azure_cloud_credentials.h"
+#include <cstdio>
 
 /**
  * This example sends and receives messages to and from Azure IoT Hub.
@@ -27,10 +30,20 @@
  */
 
 // Global symbol referenced by the Azure SDK's port for Mbed OS, via "extern"
+DigitalIn button(BUTTON1);
+TMP102 tmp(D14, D15, 0x90);
 NetworkInterface *_defaultSystemNetwork;
+TS_StateTypeDef  TS_State = {0};
+
+void updateScreen(const char * messege){
+    BSP_LCD_Clear(LCD_COLOR_GREEN);
+    BSP_LCD_SetBackColor(LCD_COLOR_GREEN);
+    BSP_LCD_SetTextColor(LCD_COLOR_BLACK);
+    BSP_LCD_DisplayStringAt(0, LINE(8), (uint8_t *)messege, CENTER_MODE);
+}
+
 
 static bool message_received = false;
-
 static void on_connection_status(IOTHUB_CLIENT_CONNECTION_STATUS result, IOTHUB_CLIENT_CONNECTION_STATUS_REASON reason, void* user_context)
 {
     if (result == IOTHUB_CLIENT_CONNECTION_AUTHENTICATED) {
@@ -66,8 +79,11 @@ static void on_message_sent(IOTHUB_CLIENT_CONFIRMATION_RESULT result, void* user
     }
 }
 
+
+
+
 void demo() {
-    TMP102 tmp(D14, D15, 0x90);
+
     bool trace_on = MBED_CONF_APP_IOTHUB_CLIENT_TRACE;
     tickcounter_ms_t interval = 100;
     IOTHUB_CLIENT_RESULT res;
@@ -123,14 +139,18 @@ void demo() {
     // or until we receive a message from the cloud
     IOTHUB_MESSAGE_HANDLE message_handle;
     char message[80];
-    for (int i = 0; i < 10; ++i) {
+    char temp[80];
+    for (int i = 0; i < 100; ++i) {
         if (message_received) {
             // If we have received a message from the cloud, don't send more messeges
             break;
         }
+        sprintf(temp, "Temp: %.2f", tmp.read_12b());
         sprintf(message, "Temperatura: %.2f", tmp.read_12b());
+        updateScreen(temp);
         // sprintf(message, "%d messages left to send, or until we receive a reply", 10 - i);
         LogInfo("Sending: \"%s\"", message);
+        
 
         message_handle = IoTHubMessage_CreateFromString(message);
         if (message_handle == nullptr) {
@@ -162,8 +182,26 @@ cleanup:
     IoTHub_Deinit();
 }
 
+
+
+
+
 int main() {
+    uint16_t x1, y1;
+    
+    BSP_LCD_Init();
+
+    /* Touchscreen initialization */
+    if (BSP_TS_Init(BSP_LCD_GetXSize(), BSP_LCD_GetYSize()) == TS_ERROR) {
+        printf("BSP_TS_Init error\n");
+    }
+
+    BSP_LCD_SetFont(&Font16);
+    /* Clear the LCD */
+    updateScreen("Connecting to network");
     LogInfo("Connecting to the network");
+    bool buttonPushed = 0;
+
 
     _defaultSystemNetwork = NetworkInterface::get_default_instance();
     if (_defaultSystemNetwork == nullptr) {
@@ -178,17 +216,11 @@ int main() {
     }
     LogInfo("Connection success, MAC: %s", _defaultSystemNetwork->get_mac_address());
 
-    
+    updateScreen("Getting ip address");
     SocketAddress a;
     _defaultSystemNetwork->get_ip_address(&a);
     printf("IP address: %s\n", a.get_ip_address() ? a.get_ip_address() : "None");
-    TCPSocket socket;
-    ret = socket.open(_defaultSystemNetwork);
-    if (ret != 0) {
-        LogError("Failed to open socket: %d", ret);
-        return -1;
-    }
-
+    
     LogInfo("Getting time from the NTP server");
     NTPClient ntp(_defaultSystemNetwork);
     ntp.set_server("time.google.com", 123);
@@ -199,6 +231,22 @@ int main() {
     }
     LogInfo("Time: %s", ctime(&timestamp));
     set_time(timestamp);
+    char buffor[250];
+    sprintf(buffor, "Ip: %s", a.get_ip_address());
+    updateScreen(buffor);
+    ThisThread::sleep_for(5s);
+    updateScreen("Touch screen to pair.");
+    bool touched = 0;
+
+    while (!touched) {
+        BSP_TS_GetState(&TS_State);
+        if(TS_State.touchDetected) {
+            touched = 1;
+        }
+    }
+
+    updateScreen("Pairing");
+    ThisThread::sleep_for(1s);
 
     LogInfo("Starting the Demo");
     demo();
