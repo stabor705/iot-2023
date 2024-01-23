@@ -3,7 +3,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include "SocketAddress.h"
+#include "TLSSocket.h"
+#include "entropy.h"
 #include "mbed.h"
+#include "nsapi_types.h"
 #include "rtos/ThisThread.h"
 #include "NTPClient.h"
 #include "TMP102/TMP102.h"
@@ -11,15 +15,26 @@
 #include "iothub.h"
 #include "iothub_client_options.h"
 #include "iothub_device_client.h"
+#include "iothub_client.h"
 #include "iothub_message.h"
 #include "azure_c_shared_utility/shared_util_options.h"
 #include "azure_c_shared_utility/threadapi.h"
 #include "azure_c_shared_utility/tickcounter.h"
 #include "azure_c_shared_utility/xlogging.h"
-#include "TCPSocket.h"
 
 #include "iothubtransportmqtt.h"
 #include "azure_cloud_credentials.h"
+
+#include "mbedtls/aes.h"
+#include "mbedtls/ctr_drbg.h"
+#include "mbedtls/net.h"
+#include "mbedtls/ssl.h"
+#include "mbedtls/error.h"
+#include <cstddef>
+#include <cstdint>
+#include <array>
+#include <cstdio>
+
 
 /**
  * This example sends and receives messages to and from Azure IoT Hub.
@@ -29,7 +44,41 @@
 // Global symbol referenced by the Azure SDK's port for Mbed OS, via "extern"
 NetworkInterface *_defaultSystemNetwork;
 
+static const char aes_key[] = {248, 72, 235, 254, 193, 253, 227, 157, 206, 142, 138, 170, 23, 215, 63, 186};
 static bool message_received = false;
+
+const char *root_ca_cert = R"(-----BEGIN CERTIFICATE-----
+MIIFYDCCBEigAwIBAgIQQAF3ITfU6UK47naqPGQKtzANBgkqhkiG9w0BAQsFADA/
+MSQwIgYDVQQKExtEaWdpdGFsIFNpZ25hdHVyZSBUcnVzdCBDby4xFzAVBgNVBAMT
+DkRTVCBSb290IENBIFgzMB4XDTIxMDEyMDE5MTQwM1oXDTI0MDkzMDE4MTQwM1ow
+TzELMAkGA1UEBhMCVVMxKTAnBgNVBAoTIEludGVybmV0IFNlY3VyaXR5IFJlc2Vh
+cmNoIEdyb3VwMRUwEwYDVQQDEwxJU1JHIFJvb3QgWDEwggIiMA0GCSqGSIb3DQEB
+AQUAA4ICDwAwggIKAoICAQCt6CRz9BQ385ueK1coHIe+3LffOJCMbjzmV6B493XC
+ov71am72AE8o295ohmxEk7axY/0UEmu/H9LqMZshftEzPLpI9d1537O4/xLxIZpL
+wYqGcWlKZmZsj348cL+tKSIG8+TA5oCu4kuPt5l+lAOf00eXfJlII1PoOK5PCm+D
+LtFJV4yAdLbaL9A4jXsDcCEbdfIwPPqPrt3aY6vrFk/CjhFLfs8L6P+1dy70sntK
+4EwSJQxwjQMpoOFTJOwT2e4ZvxCzSow/iaNhUd6shweU9GNx7C7ib1uYgeGJXDR5
+bHbvO5BieebbpJovJsXQEOEO3tkQjhb7t/eo98flAgeYjzYIlefiN5YNNnWe+w5y
+sR2bvAP5SQXYgd0FtCrWQemsAXaVCg/Y39W9Eh81LygXbNKYwagJZHduRze6zqxZ
+Xmidf3LWicUGQSk+WT7dJvUkyRGnWqNMQB9GoZm1pzpRboY7nn1ypxIFeFntPlF4
+FQsDj43QLwWyPntKHEtzBRL8xurgUBN8Q5N0s8p0544fAQjQMNRbcTa0B7rBMDBc
+SLeCO5imfWCKoqMpgsy6vYMEG6KDA0Gh1gXxG8K28Kh8hjtGqEgqiNx2mna/H2ql
+PRmP6zjzZN7IKw0KKP/32+IVQtQi0Cdd4Xn+GOdwiK1O5tmLOsbdJ1Fu/7xk9TND
+TwIDAQABo4IBRjCCAUIwDwYDVR0TAQH/BAUwAwEB/zAOBgNVHQ8BAf8EBAMCAQYw
+SwYIKwYBBQUHAQEEPzA9MDsGCCsGAQUFBzAChi9odHRwOi8vYXBwcy5pZGVudHJ1
+c3QuY29tL3Jvb3RzL2RzdHJvb3RjYXgzLnA3YzAfBgNVHSMEGDAWgBTEp7Gkeyxx
++tvhS5B1/8QVYIWJEDBUBgNVHSAETTBLMAgGBmeBDAECATA/BgsrBgEEAYLfEwEB
+ATAwMC4GCCsGAQUFBwIBFiJodHRwOi8vY3BzLnJvb3QteDEubGV0c2VuY3J5cHQu
+b3JnMDwGA1UdHwQ1MDMwMaAvoC2GK2h0dHA6Ly9jcmwuaWRlbnRydXN0LmNvbS9E
+U1RST09UQ0FYM0NSTC5jcmwwHQYDVR0OBBYEFHm0WeZ7tuXkAXOACIjIGlj26Ztu
+MA0GCSqGSIb3DQEBCwUAA4IBAQAKcwBslm7/DlLQrt2M51oGrS+o44+/yQoDFVDC
+5WxCu2+b9LRPwkSICHXM6webFGJueN7sJ7o5XPWioW5WlHAQU7G75K/QosMrAdSW
+9MUgNTP52GE24HGNtLi1qoJFlcDyqSMo59ahy2cI2qBDLKobkx/J3vWraV0T9VuG
+WCLKTVXkcGdtwlfFRjlBz4pYg1htmf5X6DYO8A4jqv2Il9DjXA6USbW1FzXSLr9O
+he8Y4IWS6wY7bCkjCWDcRQJMEhg76fsO3txE+FiYruq9RUWhiF1myv4Q6W+CyBFC
+Dfvp7OOGAN6dEOM4+qR9sdjoSYKEBpsr6GtPAQw4dy753ec5
+-----END CERTIFICATE-----
+)";
 
 static void on_connection_status(IOTHUB_CLIENT_CONNECTION_STATUS result, IOTHUB_CLIENT_CONNECTION_STATUS_REASON reason, void* user_context)
 {
@@ -162,6 +211,56 @@ cleanup:
     IoTHub_Deinit();
 }
 
+std::array<uint8_t, 16> generate_iv() {
+    std::array<uint8_t, 16> iv;
+    mbedtls_entropy_context entropy;
+    mbedtls_entropy_init(&entropy);
+    mbedtls_ctr_drbg_context ctr_drbg;
+    const char *personalization = "Klimek RNG";
+    mbedtls_ctr_drbg_init(&ctr_drbg);
+    int ret = mbedtls_ctr_drbg_seed( &ctr_drbg , mbedtls_entropy_func, &entropy, (const unsigned char *) personalization, strlen( personalization ) );
+    if (ret != 0) {
+        printf("Failed to initialize mbedtls for random bytes generation");
+        return {};
+    }
+    mbedtls_ctr_drbg_random(&ctr_drbg, iv.data(), iv.size());
+    return iv;
+}
+
+int send_message() {
+    mbedtls_aes_context aes;
+    return 0;
+}
+
+int pair() {
+    
+    return 0;
+}
+
+void https_request() {
+    printf("Entering function\n");
+    nsapi_size_or_error_t result;
+    const char *hostname = "www.stabor.xyz";
+    TLSSocket socket;
+    printf("Setting CA Certs\n");
+    result = socket.set_root_ca_cert(root_ca_cert);
+    if (result != 0) {
+        printf("dupa");
+    }
+    printf("Opening...\n");
+    result = socket.open(_defaultSystemNetwork);
+    if (result != 0) {
+        printf("Ale cipa");
+    }
+    printf("Connecting...\n");
+    result = socket.connect(SocketAddress(hostname, 443));
+    if (result != 0) {
+        printf("Straszna chujnia %d\n", result);
+        return;
+    }
+    printf("Success!\n");
+}
+
 int main() {
     LogInfo("Connecting to the network");
 
@@ -178,17 +277,9 @@ int main() {
     }
     LogInfo("Connection success, MAC: %s", _defaultSystemNetwork->get_mac_address());
 
+    https_request();
+    return 0;
     
-    SocketAddress a;
-    _defaultSystemNetwork->get_ip_address(&a);
-    printf("IP address: %s\n", a.get_ip_address() ? a.get_ip_address() : "None");
-    TCPSocket socket;
-    ret = socket.open(_defaultSystemNetwork);
-    if (ret != 0) {
-        LogError("Failed to open socket: %d", ret);
-        return -1;
-    }
-
     LogInfo("Getting time from the NTP server");
     NTPClient ntp(_defaultSystemNetwork);
     ntp.set_server("time.google.com", 123);
