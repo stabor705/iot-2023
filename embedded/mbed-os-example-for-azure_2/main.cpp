@@ -4,6 +4,8 @@
  */
 
 #include "ISM43362Interface.h"
+#include "InterfaceDigitalIn.h"
+#include "PinNames.h"
 #include "SocketAddress.h"
 #include "TLSSocket.h"
 #include "entropy.h"
@@ -120,8 +122,9 @@ static void on_message_sent(IOTHUB_CLIENT_CONFIRMATION_RESULT result, void* user
     }
 }
 
-void demo() {
+void send_temperatures() {
     TMP102 tmp(D14, D15, 0x90);
+    bool screenPressed = 0;
     bool trace_on = MBED_CONF_APP_IOTHUB_CLIENT_TRACE;
     tickcounter_ms_t interval = 100;
     IOTHUB_CLIENT_RESULT res;
@@ -172,21 +175,27 @@ void demo() {
         LogError("Failed to set connection status callback, error: %d", res);
         goto cleanup;
     }
-    printf("Before: sending");
     // Send ten message to the cloud (one per second)
     // or until we receive a message from the cloud
+    touchScreen.updateScreen("Touch to Pair");
     IOTHUB_MESSAGE_HANDLE message_handle;
     char message[250];
-    for (int i = 0; i < 1000; ++i) {
+    for (int i = 0; !screenPressed; ++i) {
         if (message_received) {
             // If we have received a message from the cloud, don't send more messeges
             break;
         }
+
+        BSP_TS_GetState(&touchScreen.TS_State);
+        if(touchScreen.TS_State.touchDetected) {
+            screenPressed = 1;
+        }
+
         // deviceId
         // value
         // timestamp 
         // {\"DeviceId\":\"stm32actual\", \"value\":%.2f, \"timestamp\": %d}
-        sprintf(message, "{\"DeviceId\":\"stm32actual\", \"value\":%.2f, \"timestamp\": %d}", tmp.read_12b(), 1);
+        sprintf(message, "{\"DeviceId\":\"stm32actual\", \"value\":%.2f }", tmp.read_12b());
         // sprintf(message, "%d messages left to send, or until we receive a reply", 10 - i);
         LogInfo("Sending: \"%s\"", message);
 
@@ -205,52 +214,21 @@ void demo() {
         }
 
         ThisThread::sleep_for(2s);
-    }
 
-    // If the user didn't manage to send a cloud-to-device message earlier,
-    // let's wait until we receive one
-    while (!message_received) {
-        // Continue to receive messages in the communication thread
-        // which is internally created and maintained by the Azure SDK.
-        sleep();
     }
+    touchScreen.updateScreen("Pairing");
+
 
 cleanup:
     IoTHubDeviceClient_Destroy(client_handle);
     IoTHub_Deinit();
 }
 
-std::array<uint8_t, 16> generate_iv() {
-    std::array<uint8_t, 16> iv;
-    mbedtls_entropy_context entropy;
-    mbedtls_entropy_init(&entropy);
-    mbedtls_ctr_drbg_context ctr_drbg;
-    const char *personalization = "Klimek RNG";
-    mbedtls_ctr_drbg_init(&ctr_drbg);
-    int ret = mbedtls_ctr_drbg_seed( &ctr_drbg , mbedtls_entropy_func, &entropy, (const unsigned char *) personalization, strlen( personalization ) );
-    if (ret != 0) {
-        printf("Failed to initialize mbedtls for random bytes generation");
-        return {};
-    }
-    mbedtls_ctr_drbg_random(&ctr_drbg, iv.data(), iv.size());
-    return iv;
-}
-
-int send_message() {
-    mbedtls_aes_context aes;
-    return 0;
-}
-
-void https_request(NetworkInterface *wifi) {
-    
-
-}
-
 int main() {
     
 
     touchScreen.init();
-
+    touchScreen.updateScreen("Connecting");
     LogInfo("Connecting to the network");
 
     _defaultSystemNetwork = NetworkInterface::get_default_instance();
@@ -278,8 +256,7 @@ int main() {
     LogInfo("Time: %s", ctime(&timestamp));
     set_time(timestamp);
 
-    demo();
-    return 0;
+    send_temperatures();
 
     nsapi_size_or_error_t result;
     const char *hostname = "iot-project-agh-bcdgl.azurewebsites.net";
@@ -287,13 +264,13 @@ int main() {
     printf("Setting CA Certs\n");
     result = socket->set_root_ca_cert(root_ca_cert);
     if (result != 0) {
-        printf("dupa");
+        printf("Failed to set CA root cert error: %d", result);
     }
 
     printf("Opening...\n");
     result = socket->open(_defaultSystemNetwork);
     if (result != 0) {
-        printf("Ale cipa");
+        printf("Failed to open socket error: %d", result);
     }
 
     printf("Connecting...\n");
@@ -303,7 +280,7 @@ int main() {
     a.set_port(443);
     result = socket->connect(a);
     if (result != 0) {
-        printf("Straszna chujnia %d\n", result);
+        printf("Failed to connect to host %d\n", result);
         return 1;
     }
     printf("Success!\n");
@@ -317,7 +294,7 @@ int main() {
                      "iIVRL4CQScmXyj/fCHqI04LdCNjDoD6tXLtJsXvvb7T9b8vVfSKef2Iz97DSM54D2090j0KwSQueeR0ajYXn0WDMbxEgWVCDKZpYnItwqpc=";
     int scount = socket->send(sbuffer, sizeof sbuffer);
     if (scount < sizeof sbuffer) {
-        printf("Something wrong there? %d %d", scount, sizeof sbuffer);
+        printf("Failed to send buffer: %d %d", scount, sizeof sbuffer);
     }
     printf("sent %d [%.*s]\n", scount, strstr(sbuffer, "\r\n") - sbuffer, sbuffer);
 
