@@ -22,7 +22,7 @@
 #include "azure_c_shared_utility/threadapi.h"
 #include "azure_c_shared_utility/tickcounter.h"
 #include "azure_c_shared_utility/xlogging.h"
-
+#include "source/lcd.h"
 #include "iothubtransportmqtt.h"
 #include "azure_cloud_credentials.h"
 
@@ -43,9 +43,10 @@
 
 // Global symbol referenced by the Azure SDK's port for Mbed OS, via "extern"
 NetworkInterface *_defaultSystemNetwork;
-
+TouchScreen touchScreen;
 static const char aes_key[] = {248, 72, 235, 254, 193, 253, 227, 157, 206, 142, 138, 170, 23, 215, 63, 186};
 static bool message_received = false;
+NTPClient ntp(_defaultSystemNetwork);
 
 const char *root_ca_cert = R"EOF(-----BEGIN CERTIFICATE-----
 MIIF8zCCBNugAwIBAgIQCq+mxcpjxFFB6jvh98dTFzANBgkqhkiG9w0BAQwFADBh
@@ -83,42 +84,6 @@ Y59Npi7F87ZqYYJEHJM2LGD+le8VsHjgeWX2CJQko7klXvcizuZvUEDTjHaQcs2J
 -----END CERTIFICATE-----
 )EOF";
 
-const char* certificate_pem_crt = R"EOF(
------BEGIN CERTIFICATE-----
-MIIF8zCCBNugAwIBAgIQCq+mxcpjxFFB6jvh98dTFzANBgkqhkiG9w0BAQwFADBh
-MQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3
-d3cuZGlnaWNlcnQuY29tMSAwHgYDVQQDExdEaWdpQ2VydCBHbG9iYWwgUm9vdCBH
-MjAeFw0yMDA3MjkxMjMwMDBaFw0yNDA2MjcyMzU5NTlaMFkxCzAJBgNVBAYTAlVT
-MR4wHAYDVQQKExVNaWNyb3NvZnQgQ29ycG9yYXRpb24xKjAoBgNVBAMTIU1pY3Jv
-c29mdCBBenVyZSBUTFMgSXNzdWluZyBDQSAwMTCCAiIwDQYJKoZIhvcNAQEBBQAD
-ggIPADCCAgoCggIBAMedcDrkXufP7pxVm1FHLDNA9IjwHaMoaY8arqqZ4Gff4xyr
-RygnavXL7g12MPAx8Q6Dd9hfBzrfWxkF0Br2wIvlvkzW01naNVSkHp+OS3hL3W6n
-l/jYvZnVeJXjtsKYcXIf/6WtspcF5awlQ9LZJcjwaH7KoZuK+THpXCMtzD8XNVdm
-GW/JI0C/7U/E7evXn9XDio8SYkGSM63aLO5BtLCv092+1d4GGBSQYolRq+7Pd1kR
-EkWBPm0ywZ2Vb8GIS5DLrjelEkBnKCyy3B0yQud9dpVsiUeE7F5sY8Me96WVxQcb
-OyYdEY/j/9UpDlOG+vA+YgOvBhkKEjiqygVpP8EZoMMijephzg43b5Qi9r5UrvYo
-o19oR/8pf4HJNDPF0/FJwFVMW8PmCBLGstin3NE1+NeWTkGt0TzpHjgKyfaDP2tO
-4bCk1G7pP2kDFT7SYfc8xbgCkFQ2UCEXsaH/f5YmpLn4YPiNFCeeIida7xnfTvc4
-7IxyVccHHq1FzGygOqemrxEETKh8hvDR6eBdrBwmCHVgZrnAqnn93JtGyPLi6+cj
-WGVGtMZHwzVvX1HvSFG771sskcEjJxiQNQDQRWHEh3NxvNb7kFlAXnVdRkkvhjpR
-GchFhTAzqmwltdWhWDEyCMKC2x/mSZvZtlZGY+g37Y72qHzidwtyW7rBetZJAgMB
-AAGjggGtMIIBqTAdBgNVHQ4EFgQUDyBd16FXlduSzyvQx8J3BM5ygHYwHwYDVR0j
-BBgwFoAUTiJUIBiV5uNu5g/6+rkS7QYXjzkwDgYDVR0PAQH/BAQDAgGGMB0GA1Ud
-JQQWMBQGCCsGAQUFBwMBBggrBgEFBQcDAjASBgNVHRMBAf8ECDAGAQH/AgEAMHYG
-CCsGAQUFBwEBBGowaDAkBggrBgEFBQcwAYYYaHR0cDovL29jc3AuZGlnaWNlcnQu
-Y29tMEAGCCsGAQUFBzAChjRodHRwOi8vY2FjZXJ0cy5kaWdpY2VydC5jb20vRGln
-aUNlcnRHbG9iYWxSb290RzIuY3J0MHsGA1UdHwR0MHIwN6A1oDOGMWh0dHA6Ly9j
-cmwzLmRpZ2ljZXJ0LmNvbS9EaWdpQ2VydEdsb2JhbFJvb3RHMi5jcmwwN6A1oDOG
-MWh0dHA6Ly9jcmw0LmRpZ2ljZXJ0LmNvbS9EaWdpQ2VydEdsb2JhbFJvb3RHMi5j
-cmwwHQYDVR0gBBYwFDAIBgZngQwBAgEwCAYGZ4EMAQICMBAGCSsGAQQBgjcVAQQD
-AgEAMA0GCSqGSIb3DQEBDAUAA4IBAQAlFvNh7QgXVLAZSsNR2XRmIn9iS8OHFCBA
-WxKJoi8YYQafpMTkMqeuzoL3HWb1pYEipsDkhiMnrpfeYZEA7Lz7yqEEtfgHcEBs
-K9KcStQGGZRfmWU07hPXHnFz+5gTXqzCE2PBMlRgVUYJiA25mJPXfB00gDvGhtYa
-+mENwM9Bq1B9YYLyLjRtUz8cyGsdyTIG/bBM/Q9jcV8JGqMU/UjAdh1pFyTnnHEl
-Y59Npi7F87ZqYYJEHJM2LGD+le8VsHjgeWX2CJQko7klXvcizuZvUEDTjHaQcs2J
-+kPgfyMIOY1DMJ21NxOJ2xPRC/wAh/hzSBRVtoAnyuxtkZ4VjIOh
------END CERTIFICATE-----
-)EOF";
 
 static void on_connection_status(IOTHUB_CLIENT_CONNECTION_STATUS result, IOTHUB_CLIENT_CONNECTION_STATUS_REASON reason, void* user_context)
 {
@@ -163,7 +128,7 @@ void demo() {
 
     LogInfo("Initializing IoT Hub client");
     IoTHub_Init();
-
+    LogInfo("After init");
     IOTHUB_DEVICE_CLIENT_HANDLE client_handle = IoTHubDeviceClient_CreateFromConnectionString(
         azure_cloud::credentials::iothub_connection_string,
         MQTT_Protocol
@@ -207,17 +172,21 @@ void demo() {
         LogError("Failed to set connection status callback, error: %d", res);
         goto cleanup;
     }
-
+    printf("Before: sending");
     // Send ten message to the cloud (one per second)
     // or until we receive a message from the cloud
     IOTHUB_MESSAGE_HANDLE message_handle;
-    char message[80];
-    for (int i = 0; i < 10; ++i) {
+    char message[250];
+    for (int i = 0; i < 1000; ++i) {
         if (message_received) {
             // If we have received a message from the cloud, don't send more messeges
             break;
         }
-        sprintf(message, "Temperatura: %.2f", tmp.read_12b());
+        // deviceId
+        // value
+        // timestamp 
+        // {\"DeviceId\":\"stm32actual\", \"value\":%.2f, \"timestamp\": %d}
+        sprintf(message, "{\"DeviceId\":\"stm32actual\", \"value\":%.2f, \"timestamp\": %d}", tmp.read_12b(), 1);
         // sprintf(message, "%d messages left to send, or until we receive a reply", 10 - i);
         LogInfo("Sending: \"%s\"", message);
 
@@ -235,7 +204,7 @@ void demo() {
             goto cleanup;
         }
 
-        ThisThread::sleep_for(1s);
+        ThisThread::sleep_for(2s);
     }
 
     // If the user didn't manage to send a cloud-to-device message earlier,
@@ -272,24 +241,16 @@ int send_message() {
     return 0;
 }
 
-int pair() {
-    
-    return 0;
-}
-
 void https_request(NetworkInterface *wifi) {
     
 
 }
 
-const char *post_content = "POST /api/pair HTTP/1.1\r\n"
-                           "Host: iot-project-agh-bcdgl.azurewebsites.net\r\n"
-                           "x-functions-key: SqUzcVOp21WG8hsiAl4XF0Qtc4p4OjiI6Sm87HJdcOCHAzFuM5L4yw==\r\n"
-                           "\r\n";
-
-const char *data = "{ \"RequestType\": \"device\", \"DeviceId\": \"stm32actual\" }\r\n";
-
 int main() {
+    
+
+    touchScreen.init();
+
     LogInfo("Connecting to the network");
 
     _defaultSystemNetwork = NetworkInterface::get_default_instance();
@@ -305,54 +266,9 @@ int main() {
     }
     LogInfo("Connection success, MAC: %s", _defaultSystemNetwork->get_mac_address());
 
-    nsapi_size_or_error_t result;
-    const char *hostname = "iot-project-agh-bcdgl.azurewebsites.net";
-    TLSSocket socket;
-    printf("Setting CA Certs\n");
-    result = socket.set_root_ca_cert(root_ca_cert);
-    if (result != 0) {
-        printf("dupa");
-    }
-    printf("Opening...\n");
-    result = socket.open(_defaultSystemNetwork);
-    if (result != 0) {
-        printf("Ale cipa");
-    }
-    printf("Connecting...\n");
-    SocketAddress a;
-    _defaultSystemNetwork->gethostbyname(hostname, &a);
-    printf("%s", a.get_ip_address());
-    a.set_port(443);
-    result = socket.connect(a);
-    if (result != 0) {
-        printf("Straszna chujnia %d\n", result);
-        return 1;
-    }
-    printf("Success!\n");
-;
 
-    char sbuffer[] = "POST /api/pair HTTP/1.1\r\n"
-                     "Host: iot-project-agh-bcdgl.azurewebsites.net\r\n"
-                     "x-functions-key: SqUzcVOp21WG8hsiAl4XF0Qtc4p4OjiI6Sm87HJdcOCHAzFuM5L4yw==\r\n"
-                     "Content-Type: application/json\r\n"
-                     "Content-Length: 108\r\n"
-                     "\r\n"
-                     "iIVRL4CQScmXyj/fCHqI04LdCNjDoD6tXLtJsXvvb7T9b8vVfSKef2Iz97DSM54D2090j0KwSQueeR0ajYXn0WDMbxEgWVCDKZpYnItwqpc=";
-    int scount = socket.send(sbuffer, sizeof sbuffer);
-    if (scount < sizeof sbuffer) {
-        printf("Something wrong there? %d %d", scount, sizeof sbuffer);
-    }
-    printf("sent %d [%.*s]\n", scount, strstr(sbuffer, "\r\n") - sbuffer, sbuffer);
-
-    // Recieve a simple http response and print out the response line
-    char rbuffer[256];
-    int rcount = socket.recv(rbuffer, sizeof rbuffer);
-    printf("recv %d [%.*s]\n", rcount, strstr(rbuffer, "\r\n") - rbuffer, rbuffer);
-
-    return 0;
-    
     LogInfo("Getting time from the NTP server");
-    NTPClient ntp(_defaultSystemNetwork);
+
     ntp.set_server("time.google.com", 123);
     time_t timestamp = ntp.get_timestamp();
     if (timestamp < 0) {
@@ -362,9 +278,61 @@ int main() {
     LogInfo("Time: %s", ctime(&timestamp));
     set_time(timestamp);
 
-    LogInfo("Starting the Demo");
     demo();
+    return 0;
+
+    nsapi_size_or_error_t result;
+    const char *hostname = "iot-project-agh-bcdgl.azurewebsites.net";
+    TLSSocket *socket = new TLSSocket();
+    printf("Setting CA Certs\n");
+    result = socket->set_root_ca_cert(root_ca_cert);
+    if (result != 0) {
+        printf("dupa");
+    }
+
+    printf("Opening...\n");
+    result = socket->open(_defaultSystemNetwork);
+    if (result != 0) {
+        printf("Ale cipa");
+    }
+
+    printf("Connecting...\n");
+    SocketAddress a;
+    _defaultSystemNetwork->gethostbyname(hostname, &a);
+    printf("%s", a.get_ip_address());
+    a.set_port(443);
+    result = socket->connect(a);
+    if (result != 0) {
+        printf("Straszna chujnia %d\n", result);
+        return 1;
+    }
+    printf("Success!\n");
+
+    char sbuffer[] = "POST /api/pair HTTP/1.1\r\n"
+                     "Host: iot-project-agh-bcdgl.azurewebsites.net\r\n"
+                     "x-functions-key: SqUzcVOp21WG8hsiAl4XF0Qtc4p4OjiI6Sm87HJdcOCHAzFuM5L4yw==\r\n"
+                     "Content-Type: application/json\r\n"
+                     "Content-Length: 108\r\n"
+                     "\r\n"
+                     "iIVRL4CQScmXyj/fCHqI04LdCNjDoD6tXLtJsXvvb7T9b8vVfSKef2Iz97DSM54D2090j0KwSQueeR0ajYXn0WDMbxEgWVCDKZpYnItwqpc=";
+    int scount = socket->send(sbuffer, sizeof sbuffer);
+    if (scount < sizeof sbuffer) {
+        printf("Something wrong there? %d %d", scount, sizeof sbuffer);
+    }
+    printf("sent %d [%.*s]\n", scount, strstr(sbuffer, "\r\n") - sbuffer, sbuffer);
+
+    // Recieve a simple http response and print out the response line
+    char rbuffer[256];
+    int rcount = socket->recv(rbuffer, sizeof rbuffer);
+    printf("recv %d [%.*s]\n", rcount, strstr(rbuffer, "\r\n") - rbuffer, rbuffer);
+
+    
+    socket->close();
+    delete socket;
+    LogInfo("Starting the Demo");
+
     LogInfo("The demo has ended");
+
 
     return 0;
 }
