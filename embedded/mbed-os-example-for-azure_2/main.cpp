@@ -125,7 +125,7 @@ void send_temperatures() {
     bool screenPressed = 0;
     bool trace_on = MBED_CONF_APP_IOTHUB_CLIENT_TRACE;
     tickcounter_ms_t interval = 100;
-    IOTHUB_CLIENT_RESULT res;
+    IOTHUB_CLIENT_RESULT response;
 
     LogInfo("Initializing IoT Hub client");
     IoTHub_Init();
@@ -140,42 +140,42 @@ void send_temperatures() {
     }
 
     // Enable SDK tracing
-    res = IoTHubDeviceClient_SetOption(client_handle, OPTION_LOG_TRACE, &trace_on);
-    if (res != IOTHUB_CLIENT_OK) {
-        LogError("Failed to enable IoT Hub client tracing, error: %d", res);
+    response = IoTHubDeviceClient_SetOption(client_handle, OPTION_LOG_TRACE, &trace_on);
+    if (response != IOTHUB_CLIENT_OK) {
+        LogError("Failed to enable IoT Hub client tracing, error: %d", response);
         goto cleanup;
     }
 
     // Enable static CA Certificates defined in the SDK
-    res = IoTHubDeviceClient_SetOption(client_handle, OPTION_TRUSTED_CERT, certificates);
-    if (res != IOTHUB_CLIENT_OK) {
-        LogError("Failed to set trusted certificates, error: %d", res);
+    response = IoTHubDeviceClient_SetOption(client_handle, OPTION_TRUSTED_CERT, certificates);
+    if (response != IOTHUB_CLIENT_OK) {
+        LogError("Failed to set trusted certificates, error: %d", response);
         goto cleanup;
     }
 
     // Process communication every 100ms
-    res = IoTHubDeviceClient_SetOption(client_handle, OPTION_DO_WORK_FREQUENCY_IN_MS, &interval);
-    if (res != IOTHUB_CLIENT_OK) {
-        LogError("Failed to set communication process frequency, error: %d", res);
+    response = IoTHubDeviceClient_SetOption(client_handle, OPTION_DO_WORK_FREQUENCY_IN_MS, &interval);
+    if (response != IOTHUB_CLIENT_OK) {
+        LogError("Failed to set communication process frequency, error: %d", response);
         goto cleanup;
     }
 
     // set incoming message callback
-    res = IoTHubDeviceClient_SetMessageCallback(client_handle, on_message_received, nullptr);
-    if (res != IOTHUB_CLIENT_OK) {
-        LogError("Failed to set message callback, error: %d", res);
+    response = IoTHubDeviceClient_SetMessageCallback(client_handle, on_message_received, nullptr);
+    if (response != IOTHUB_CLIENT_OK) {
+        LogError("Failed to set message callback, error: %d", response);
         goto cleanup;
     }
 
     // Set connection/disconnection callback
-    res = IoTHubDeviceClient_SetConnectionStatusCallback(client_handle, on_connection_status, nullptr);
-    if (res != IOTHUB_CLIENT_OK) {
-        LogError("Failed to set connection status callback, error: %d", res);
+    response = IoTHubDeviceClient_SetConnectionStatusCallback(client_handle, on_connection_status, nullptr);
+    if (response != IOTHUB_CLIENT_OK) {
+        LogError("Failed to set connection status callback, error: %d", response);
         goto cleanup;
     }
     // Send ten message to the cloud (one per second)
     // or until we receive a message from the cloud
-    touchScreen.updateScreen("Touch to Pair");
+    touchScreen.updateScreen("Hold to Pair");
     IOTHUB_MESSAGE_HANDLE message_handle;
     char message[250];
     for (int i = 0; !screenPressed; ++i) {
@@ -205,11 +205,11 @@ void send_temperatures() {
             goto cleanup;
         }
 
-        res = IoTHubDeviceClient_SendEventAsync(client_handle, message_handle, on_message_sent, nullptr);
+        response = IoTHubDeviceClient_SendEventAsync(client_handle, message_handle, on_message_sent, nullptr);
         IoTHubMessage_Destroy(message_handle); // message already copied into the SDK
 
-        if (res != IOTHUB_CLIENT_OK) {
-            LogError("Failed to send message event, error: %d", res);
+        if (response != IOTHUB_CLIENT_OK) {
+            LogError("Failed to send message event, error: %d", response);
             goto cleanup;
         }
 
@@ -235,9 +235,9 @@ int main() {
         return -1;
     }
 
-    int ret = _defaultSystemNetwork->connect();
-    if (ret != 0) {
-        LogError("Connection error: %d", ret);
+    int returnCode = _defaultSystemNetwork->connect();
+    if (returnCode != 0) {
+        LogError("Connection error: %d", returnCode);
         return -1;
     }
     LogInfo("Connection success, MAC: %s", _defaultSystemNetwork->get_mac_address());
@@ -284,25 +284,24 @@ int main() {
     }
     printf("Success!\n");
 
-    char sbuffer[] = "POST /api/pair HTTP/1.1\r\n"
+    char sendBuffer[] = "POST /api/pair HTTP/1.1\r\n"
                      "Host: iot-project-agh-bcdgl.azurewebsites.net\r\n"
                      "x-functions-key: SqUzcVOp21WG8hsiAl4XF0Qtc4p4OjiI6Sm87HJdcOCHAzFuM5L4yw==\r\n"
                      "Content-Type: application/json\r\n"
                      "Content-Length: 108\r\n"
                      "\r\n"
                      "iIVRL4CQScmXyj/fCHqI04LdCNjDoD6tXLtJsXvvb7T9b8vVfSKef2Iz97DSM54D2090j0KwSQueeR0ajYXn0WDMbxEgWVCDKZpYnItwqpc=";
-    int scount = socket->send(sbuffer, sizeof sbuffer);
-    if (scount < sizeof sbuffer) {
-        printf("Failed to send buffer: %d %d", scount, sizeof sbuffer);
+    int numberOfBytesToSend = socket->send(sendBuffer, sizeof sendBuffer);
+    if (numberOfBytesToSend < sizeof sendBuffer) {
+        printf("Failed to send buffer: %d %d", numberOfBytesToSend, sizeof sendBuffer);
     }
-    printf("sent %d [%.*s]\n", scount, strstr(sbuffer, "\r\n") - sbuffer, sbuffer);
+    printf("sent %d [%.*s]\n", numberOfBytesToSend, strstr(sendBuffer, "\r\n") - sendBuffer, sendBuffer);
 
     // Recieve a simple http response and print out the response line
-    char rbuffer[256];
-    int rcount = socket->recv(rbuffer, sizeof rbuffer);
-    printf("recv %d [%.*s]\n", rcount, strstr(rbuffer, "\r\n") - rbuffer, rbuffer);
+    char recivedBufferSize[256];
+    int numberOfBytesRecived = socket->recv(recivedBufferSize, sizeof recivedBufferSize);
+    printf("recv %d [%.*s]\n", numberOfBytesRecived, strstr(recivedBufferSize, "\r\n") - recivedBufferSize, recivedBufferSize);
     touchScreen.updateScreen("Pairing success!");
-
     delete socket;
     return 0;
 }
