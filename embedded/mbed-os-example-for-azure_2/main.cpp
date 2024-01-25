@@ -46,9 +46,7 @@
 // Global symbol referenced by the Azure SDK's port for Mbed OS, via "extern"
 NetworkInterface *_defaultSystemNetwork;
 TouchScreen touchScreen;
-static const char aes_key[] = {248, 72, 235, 254, 193, 253, 227, 157, 206, 142, 138, 170, 23, 215, 63, 186};
 static bool message_received = false;
-NTPClient ntp(_defaultSystemNetwork);
 
 const char *root_ca_cert = R"EOF(-----BEGIN CERTIFICATE-----
 MIIF8zCCBNugAwIBAgIQCq+mxcpjxFFB6jvh98dTFzANBgkqhkiG9w0BAQwFADBh
@@ -189,7 +187,9 @@ void send_temperatures() {
         BSP_TS_GetState(&touchScreen.TS_State);
         if(touchScreen.TS_State.touchDetected) {
             screenPressed = 1;
+            touchScreen.updateScreen("Pairing");
         }
+        
 
         // deviceId
         // value
@@ -213,11 +213,9 @@ void send_temperatures() {
             goto cleanup;
         }
 
-        ThisThread::sleep_for(2s);
+        ThisThread::sleep_for(10s);
 
     }
-    touchScreen.updateScreen("Pairing");
-
 
 cleanup:
     IoTHubDeviceClient_Destroy(client_handle);
@@ -228,7 +226,7 @@ int main() {
     
 
     touchScreen.init();
-    touchScreen.updateScreen("Connecting");
+    touchScreen.updateScreen("Connecting to net");
     LogInfo("Connecting to the network");
 
     _defaultSystemNetwork = NetworkInterface::get_default_instance();
@@ -246,6 +244,7 @@ int main() {
 
 
     LogInfo("Getting time from the NTP server");
+    NTPClient ntp(_defaultSystemNetwork);
 
     ntp.set_server("time.google.com", 123);
     time_t timestamp = ntp.get_timestamp();
@@ -302,14 +301,8 @@ int main() {
     char rbuffer[256];
     int rcount = socket->recv(rbuffer, sizeof rbuffer);
     printf("recv %d [%.*s]\n", rcount, strstr(rbuffer, "\r\n") - rbuffer, rbuffer);
+    touchScreen.updateScreen("Pairing success!");
 
-    
-    socket->close();
     delete socket;
-    LogInfo("Starting the Demo");
-
-    LogInfo("The demo has ended");
-
-
     return 0;
 }
