@@ -303,5 +303,8 @@ int main() {
     printf("recv %d [%.*s]\n", numberOfBytesRecived, strstr(recivedBufferSize, "\r\n") - recivedBufferSize, recivedBufferSize);
     touchScreen.updateScreen("Pairing success!");
     delete socket;
+
+    NVIC_SystemReset();
+
     return 0;
 }
